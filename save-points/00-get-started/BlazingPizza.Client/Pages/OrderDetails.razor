@@ -1,6 +1,7 @@
 ﻿@page "/myorders/{orderId:int}"
 @using System.Threading
 @inject HttpClient HttpClient
+@inject OrdersClient OrdersClient
 @implements IDisposable
 
 
@@ -27,8 +28,12 @@
             </div>
             <div class="track-order-body">
                  <div class="track-order-details">
+
                     <OrderReview Order="orderWithStatus.Order" />
                  </div>
+                  <div class="track-order-map">
+                    <Map Zoom="13" Markers="orderWithStatus.MapMarkers" />
+                </div>
             </div>
         </div>
     }
@@ -59,23 +64,20 @@
 
     private async void PollForUpdates()
     {
+        invalidOrder = false;
         pollingCancellationToken = new CancellationTokenSource();
         while (!pollingCancellationToken.IsCancellationRequested)
         {
             try
             {
-                invalidOrder = false;
-                orderWithStatus = await HttpClient.GetFromJsonAsync<OrderWithStatus>($"orders/{OrderId}");
+                orderWithStatus = await OrdersClient.GetOrder(OrderId);
                 StateHasChanged();
-
-                if (orderWithStatus.IsDelivered)
-                {
-                    pollingCancellationToken.Cancel();
-                }
-                else
-                {
-                    await Task.Delay(4000);
-                }
+                await Task.Delay(4000);
+            }
+            catch (AccessTokenNotAvailableException ex)
+            {
+                pollingCancellationToken.Cancel();
+                ex.Redirect();
             }
             catch (Exception ex)
             {
